@@ -10,7 +10,9 @@ Example:
 ```
 var products []Product
 dsn := "SYSDBA:masterkey@127.0.0.1/sysdb?charset=utf8"
-db, err := gorm.Open(firebird.Open(dsn), &gorm.Config{})
+db, err := gorm.Open(firebird.Open(dsn), &gorm.Config{
+   NamingStrategy: firebird.NamingStrategy{},  //这个很重要
+})
 if err != nil {
 	fmt.Println(err)
 }
