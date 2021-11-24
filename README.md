@@ -14,7 +14,7 @@ if err != nil {
 
 ```
 type Product struct {
-PID  string ``gorm:"primaryKey"``
+PID  string `gorm:"primaryKey"`
 NAME string
 }
 ```
