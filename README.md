@@ -20,12 +20,13 @@ if err != nil {
 
 ```
 type Product struct {
-PID  string `gorm:"primaryKey"`
-NAME string
+Pid  string `gorm:"primaryKey"`
+Name string
 }
 ```
 
 ```
+//这个不是必需的
 func (Product) TableName() string {
 return "PRODUCT"
 }
