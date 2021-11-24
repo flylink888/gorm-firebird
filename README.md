@@ -1,6 +1,10 @@
 # gorm-firebird
 GORM firebird driver
 
+import:
+
+"github.com/flylink888/gorm-firebird"
+
 Example:
 
 ```
