@@ -1,5 +1,5 @@
 # gorm-firebird
-GORM firebird driver
+GORM firebird driver (for Firebird 3.0)
 
 import:
 
