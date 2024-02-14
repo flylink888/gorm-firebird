@@ -27,7 +27,7 @@ type Dialector struct {
 }
 
 func (dialector Dialector) Name() string {
-	return "firebird"
+	return "gorm-firebird"
 }
 
 func Open(dsn string) gorm.Dialector {
@@ -96,7 +96,7 @@ func (dialector Dialector) ClauseBuilders() map[string]clause.ClauseBuilder {
 		"LIMIT": func(c clause.Clause, builder clause.Builder) {
 			if limit, ok := c.Expression.(clause.Limit); ok {
 				builder.WriteString("ROWS ")
-				builder.WriteString(strconv.Itoa(limit.Limit))
+				builder.WriteString(strconv.Itoa(*limit.Limit))
 				if limit.Offset > 0 {
 					builder.WriteString(" TO ")
 					builder.WriteString(strconv.Itoa(limit.Offset))
@@ -180,7 +180,7 @@ func (dialector Dialector) DataTypeOf(field *schema.Field) string {
 				hasIndex := field.TagSettings["INDEX"] != "" || field.TagSettings["UNIQUE"] != ""
 				// TEXT, GEOMETRY or JSON column can't have a default value
 				if field.PrimaryKey || field.HasDefaultValue || hasIndex {
-					size =256
+					size = 256
 				}
 			}
 		}

@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/migrator"
 	"gorm.io/gorm/schema"
+	"reflect"
 	"strings"
 )
 
@@ -16,55 +17,87 @@ type Migrator struct {
 }
 
 type Column struct {
-	name              string
-	nullable          sql.NullString
-	datatype          string
-	maxLen            sql.NullInt64
-	precision         sql.NullInt64
-	scale             sql.NullInt64
-	datetimePrecision sql.NullInt64
+	SQLColumnType      *sql.ColumnType
+	NameValue          sql.NullString
+	DataTypeValue      sql.NullString
+	ColumnTypeValue    sql.NullString
+	PrimaryKeyValue    sql.NullBool
+	UniqueValue        sql.NullBool
+	AutoIncrementValue sql.NullBool
+	LengthValue        sql.NullInt64
+	DecimalSizeValue   sql.NullInt64
+	ScaleValue         sql.NullInt64
+	NullableValue      sql.NullBool
+	ScanTypeValue      reflect.Type
+	CommentValue       sql.NullString
+	DefaultValueValue  sql.NullString
 }
 
 func (c Column) Name() string {
 	//从数据库中查到的字段名,有空格需要去除
-	return strings.TrimSpace(c.name)
+	if c.NameValue.Valid {
+		return strings.TrimSpace(c.NameValue.String)
+	}
+	return strings.TrimSpace(c.SQLColumnType.Name())
 }
 
 func (c Column) DatabaseTypeName() string {
-	return c.datatype
+	if c.DataTypeValue.Valid {
+		return c.DataTypeValue.String
+	}
+	return c.SQLColumnType.DatabaseTypeName()
+}
+
+func (c Column) ColumnType() (columnType string, ok bool) {
+	return c.ColumnTypeValue.String, c.ColumnTypeValue.Valid
+}
+
+func (c Column) PrimaryKey() (isPrimaryKey bool, ok bool) {
+	return c.PrimaryKeyValue.Bool, c.PrimaryKeyValue.Valid
+}
+
+func (c Column) AutoIncrement() (isAutoIncrement bool, ok bool) {
+	return c.AutoIncrementValue.Bool, c.AutoIncrementValue.Valid
 }
 
 func (c Column) Length() (int64, bool) {
-	if c.maxLen.Valid {
-		return c.maxLen.Int64, c.maxLen.Valid
+	if c.LengthValue.Valid {
+		return c.LengthValue.Int64, true
 	}
+	return c.SQLColumnType.Length()
+}
 
-	return 0, false
+func (c Column) DecimalSize() (int64, int64, bool) {
+	if c.DecimalSizeValue.Valid {
+		return c.DecimalSizeValue.Int64, c.ScaleValue.Int64, true
+	}
+	return c.SQLColumnType.DecimalSize()
 }
 
 func (c Column) Nullable() (bool, bool) {
-	if c.nullable.Valid {
-		return c.nullable.String != "1", true
+	if c.NullableValue.Valid {
+		return c.NullableValue.Bool, true
 	}
-
-	return false, false
+	return c.SQLColumnType.Nullable()
 }
 
-// DecimalSize return precision int64, scale int64, ok bool
-func (c Column) DecimalSize() (int64, int64, bool) {
-	if c.precision.Valid {
-		if c.scale.Valid {
-			return c.precision.Int64, c.scale.Int64, true
-		}
+func (c Column) Unique() (unique bool, ok bool) {
+	return c.UniqueValue.Bool, c.UniqueValue.Valid
+}
 
-		return c.precision.Int64, 0, true
+func (c Column) ScanType() reflect.Type {
+	if c.ScanTypeValue != nil {
+		return c.ScanTypeValue
 	}
+	return c.SQLColumnType.ScanType()
+}
 
-	if c.datetimePrecision.Valid {
-		return c.datetimePrecision.Int64, 0, true
-	}
+func (c Column) Comment() (value string, ok bool) {
+	return c.CommentValue.String, c.CommentValue.Valid
+}
 
-	return 0, 0, false
+func (c Column) DefaultValue() (value string, ok bool) {
+	return c.DefaultValueValue.String, c.DefaultValueValue.Valid
 }
 
 func (m Migrator) AlterColumn(value interface{}, field string) error {
@@ -172,8 +205,7 @@ func (m Migrator) DropConstraint(value interface{}, name string) error {
 func (m Migrator) ColumnTypes(value interface{}) ([]gorm.ColumnType, error) {
 	columnTypes := make([]gorm.ColumnType, 0)
 	err := m.RunWithValue(value, func(stmt *gorm.Statement) error {
-		var
-		columnTypeSQL   = "SELECT B.RDB$FIELD_NAME column_name, B.RDB$NULL_FLAG is_nullable, (CASE D.RDB$TYPE_NAME  WHEN 'TEXT' THEN 'CHAR' WHEN 'INT64' THEN 'BIGINT' WHEN 'LONG' THEN IIF(C.RDB$FIELD_SCALE=0,'INTEGER','NUMBERIC') WHEN 'SHORT' THEN 'SMALLINT' WHEN 'DOUBLE' THEN 'DOUBLE' WHEN 'VARYING' THEN 'VARCHAR' WHEN 'FLOAT' THEN 'FLOAT' WHEN 'BLOB' THEN 'BLOB' WHEN 'TIMESTAMP' THEN 'TIMESTAMP' END) data_type, IIF(D.RDB$TYPE_NAME='VARYING',C.RDB$FIELD_LENGTH/4,C.RDB$FIELD_LENGTH*4) character_maximum_length, C.RDB$FIELD_PRECISION numeric_precision, C.RDB$FIELD_SCALE numeric_scale FROM RDB$RELATIONS A INNER JOIN RDB$RELATION_FIELDS B ON A.RDB$RELATION_NAME = B.RDB$RELATION_NAME INNER JOIN RDB$FIELDS C ON B.RDB$FIELD_SOURCE = C.RDB$FIELD_NAME INNER JOIN RDB$TYPES D ON C.RDB$FIELD_TYPE = D.RDB$TYPE WHERE A.RDB$SYSTEM_FLAG = 0 AND D.RDB$FIELD_NAME = 'RDB$FIELD_TYPE' AND A.RDB$RELATION_NAME = 'USERS' ORDER BY B.RDB$FIELD_POSITION "
+		var columnTypeSQL = "SELECT B.RDB$FIELD_NAME column_name, B.RDB$NULL_FLAG is_nullable, (CASE D.RDB$TYPE_NAME  WHEN 'TEXT' THEN 'CHAR' WHEN 'INT64' THEN 'BIGINT' WHEN 'LONG' THEN IIF(C.RDB$FIELD_SCALE=0,'INTEGER','NUMBERIC') WHEN 'SHORT' THEN 'SMALLINT' WHEN 'DOUBLE' THEN 'DOUBLE' WHEN 'VARYING' THEN 'VARCHAR' WHEN 'FLOAT' THEN 'FLOAT' WHEN 'BLOB' THEN 'BLOB' WHEN 'TIMESTAMP' THEN 'TIMESTAMP' END) data_type, IIF(D.RDB$TYPE_NAME='VARYING',C.RDB$FIELD_LENGTH/4,C.RDB$FIELD_LENGTH*4) character_maximum_length, C.RDB$FIELD_PRECISION numeric_precision, C.RDB$FIELD_SCALE numeric_scale FROM RDB$RELATIONS A INNER JOIN RDB$RELATION_FIELDS B ON A.RDB$RELATION_NAME = B.RDB$RELATION_NAME INNER JOIN RDB$FIELDS C ON B.RDB$FIELD_SOURCE = C.RDB$FIELD_NAME INNER JOIN RDB$TYPES D ON C.RDB$FIELD_TYPE = D.RDB$TYPE WHERE A.RDB$SYSTEM_FLAG = 0 AND D.RDB$FIELD_NAME = 'RDB$FIELD_TYPE' AND A.RDB$RELATION_NAME = 'USERS' ORDER BY B.RDB$FIELD_POSITION "
 
 		columns, rowErr := m.DB.Raw(columnTypeSQL, strings.ToUpper(stmt.Table)).Rows()
 		if rowErr != nil {
@@ -184,8 +216,10 @@ func (m Migrator) ColumnTypes(value interface{}) ([]gorm.ColumnType, error) {
 
 		for columns.Next() {
 			var column Column
-			var values = []interface{}{&column.name, &column.nullable, &column.datatype,
-				&column.maxLen, &column.precision, &column.scale}
+			var values = []interface{}{&column.SQLColumnType, &column.NameValue, &column.DataTypeValue,
+				&column.ColumnTypeValue, &column.PrimaryKeyValue, &column.UniqueValue, &column.AutoIncrementValue,
+				&column.LengthValue, &column.DecimalSizeValue, &column.ScaleValue, &column.NullableValue, &column.ScanTypeValue,
+				&column.CommentValue, &column.DefaultValueValue}
 
 			if scanErr := columns.Scan(values...); scanErr != nil {
 				return scanErr
@@ -216,7 +250,7 @@ func (m Migrator) HasIndex(value interface{}, name string) bool {
 		}
 
 		return m.DB.Raw(
-		"select count(*) from RDB$INDICES where RDB$RELATION_NAME= ? and RDB$INDEX_NAME= ?",
+			"select count(*) from RDB$INDICES where RDB$RELATION_NAME= ? and RDB$INDEX_NAME= ?",
 			strings.ToUpper(stmt.Table), strings.ToUpper(name),
 		).Row().Scan(&count)
 	})
